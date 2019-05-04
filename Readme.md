@@ -6,19 +6,6 @@ to contact us or open a github issue.
 
 [![Build Status](https://travis-ci.org/MIC-DKFZ/batchgenerators.svg?branch=master)](https://travis-ci.org/MIC-DKFZ/batchgenerators)
 
-## Windows is not (yet) supported!!
-Batchgenerators makes heavy use of python multiprocessing and python multiprocessing on windows is a problem. 
-We are trying to find a solution but as of now batchgenerators won't work on Windows!
-
-### Important!
-Starting from version 1.14.6 numpy has issues with multiprocessing. Mutrix multiplications (which we are using 
-to rotate coordinate systems for data augmentation) now run mutlithreaded on all available threads. 
-This can cause chaos if you are using a multiprocessing pipeline, beacause each background worker will spawn a lot of 
-threads to do the matrix multiplication (8 workers on a 16 Core machine = up to 8*16=256 threads. duh.). There is nothing we (dkfz devs) can do to 
-tackle that problem, but this will only be a real issue in very specific configurations of data augmentation. If you 
-notice unnecessarily high CPU load, downgrade numpy to 1.14.5 (pip install numpy==1.14.5) to solve the issue (or try OMP_NUM_THREADS=1). 
-Numpy devs are aware of this problem and trying to find a solution (see https://github.com/numpy/numpy/issues/11826#issuecomment-425087772)
-
 ## Suported Augmentations
 We supports a variety of augmentations, all of which are compatible with **2D and 3D input data**! (This is something
 that was missing in most other frameworks).
@@ -51,8 +38,12 @@ composed transform into our **multithreader**: batchgenerators.dataloading.multi
 
 The working principle is simple: Derive from DataLoaderBase class, reimplement generate_train_batch member function and
 use it to stack your augmentations!
-For an example see `batchgenerators/examples/example_ipynb.ipynb`
+For simple example see `batchgenerators/examples/example_ipynb.ipynb`
 
+We also now have an extensive example for BraTS2017/2018 with both 2D and 3D DataLoader and augmentations: 
+`batchgenerators/examples/brats2017/`
+
+There are also CIFAR10/100 datasets and DataLoader available at `batchgenerators/datasets/cifar.py`
 
 ## Data Structure
 
@@ -93,7 +84,50 @@ from batchgenerators.transforms.color_transforms import ContrastAugmentationTran
 
 Note: This package also includes 'generators'. Support for those will be dropped in the future. That was our old design.
 
+## Windows Support is very experimental!
+Batchgenerators makes heavy use of python multiprocessing and python multiprocessing on windows is different from linux. 
+To prevent the workers from freezing in windows, you have to guard your code with `if __name__ == '__main__'` and use multiprocessing's [`freeze_support`](https://docs.python.org/3/library/multiprocessing.html#multiprocessing.freeze_support). The executed script may then look like this:
+
+```
+# some imports and functions here
+
+def main():
+    # do some stuff
+
+if __name__ == '__main__':
+    from multiprocessing import freeze_support
+    freeze_support()
+    main()
+```
+
+This is not required on Linux.
+
+## Important!
+Starting from version 1.14.6 numpy has issues with multiprocessing (it's supposed to be a feature...). 
+Mutrix multiplications (which we are using to rotate coordinate systems for data augmentation) now run mutlithreaded on all available threads. 
+This can cause chaos if you are using a multiprocessing pipeline, beacause each background worker will spawn a lot of 
+threads to do the matrix multiplication (8 workers on a 16 Core machine = up to 8*16=256 threads. duh.). There is nothing we (dkfz devs) can do to 
+tackle that problem, but this will only be a real issue in very specific configurations of data augmentation. If you 
+notice unnecessarily high CPU load, there are two things you can do:
+
+- (recommended) run all your experiments with `OMP_NUM_THREADS=1` or (even better) add this to your environment 
+variables (`export OMP_NUM_THREADS=1` in .bashrc on linux)
+- downgrade numpy to 1.14.5 (pip install numpy==1.14.5) to solve the issue
+
+Numpy devs are aware of this problem and trying to find a solution 
+(see https://github.com/numpy/numpy/issues/11826#issuecomment-425087772)
+
+
 ## Release Notes
+
+
+- 0.19:
+   - There is now a complete example for BraTS2017/8 available for both 2D and 3D. Use this if you would like to get 
+   some insights on how I (Fabian) do my experiments
+   - Windows is now supported! Thanks @justusschock for your support!
+   - new, simple parametrization of elastic deformation. Use SpatialTransform_2!
+   - CIFAR10/100 DataLoader are now available for your convenience
+   - a bug in MultiThreadedAugmenter that could interfere with reproducibility is now fixed
 
 - 0.18:
     - all augmentations (there are some exceptions though) are implemented on a per-sample basis. This should make it 
